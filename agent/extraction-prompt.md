@@ -123,3 +123,5 @@ Use the exact top-level structure above. Do not add a comparison or a verdict at
 Source references MUST be plain strings containing filename, page/section and an exact short quote. Totals source_references is an array of these strings. Empty or incomplete documents must use needs_review or missing_document, never ready.
 
 Use compact JSON without indentation. Extract evidence faithfully; do not spend reasoning on arithmetic checks or drafting a report during extraction. Application code checks arithmetic in the next stage. Preserve every line, value, source reference and uncertainty.
+
+Pages marked OCR contain recognized text, not certified source values. Preserve this provenance in source references. Record an ocr_source issue with affects_comparison=true and status needs_review whenever OCR pages are present. Never silently correct ambiguous OCR digits, decimal separators, currencies or table associations; use null and explain uncertainty. Arithmetic consistency alone does not prove OCR accuracy.

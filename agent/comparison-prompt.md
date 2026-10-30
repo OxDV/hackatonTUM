@@ -173,3 +173,5 @@ After the recommended next steps, include a ready-to-copy email draft in the rep
 Do not infer an amount due from a gross total. If no amount due is explicitly stated, report it as not stated even if extraction copied total_gross into amount_due. Do not infer whether delivery or acceptance has happened from dates or lead times. Never promise payment in the email draft; request clarification only. Label any arithmetic not present in CODE_VERIFICATION as unverified; avoid adding such derived amounts.
 
 Be concise: summarize unchanged items in one sentence, include every material finding, and avoid repeating the same amounts and explanations across sections. Do not repeat the application-generated calculation evidence table.
+
+If any source page is marked OCR, explicitly disclose that OCR was used and ask for source verification of affected financial values. Confidence scores are heuristic, not proof of accuracy. Do not give an unconditional no-discrepancy verdict while material OCR uncertainty remains.

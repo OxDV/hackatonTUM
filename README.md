@@ -6,7 +6,7 @@ Upload an offer and an invoice to a Sokosumi task. The agent produces an English
 
 ## How it works
 
-1. The worker reads the assigned task and its two PDF attachments, preserving filenames and page numbers.
+1. The worker reads the assigned task and its two PDF attachments, preserving filenames and page numbers. Pages without sufficient embedded text are processed with local OCR before any payment request.
 2. The model extracts structured data. Zod validates the result; one format-repair attempt is allowed before an invalid extraction blocks comparison.
 3. Application code checks line arithmetic, supported VAT calculations, net subtotals, gross totals, and document-total differences using exact rational arithmetic.
 4. The model interprets scope, matches items, and writes the report and email draft. The application appends its calculation evidence.
@@ -30,7 +30,9 @@ The worker snapshots extracted text before choosing the payment branch and uses 
 
 - Node.js 24 or newer is required.
 - PDF extraction uses PDFKit through Swift on macOS (Xcode command-line tools required), or Poppler's `pdftotext` on Linux.
-- Scanned PDFs require OCR before upload; OCR is not included.
+- Scanned PDF pages use local OCR: Apple Vision on macOS, or Tesseract with `deu` and `eng` language data plus Poppler (`pdftotext`, `pdftoppm`) on Linux. Linux OCR dependencies must be installed separately. Native text pages keep their existing extraction path.
+- PDFs are limited to 20 pages. Blank/unreadable pages and OCR pages with mean confidence below 0.8 are rejected before the agent requests payment. Recognized segments below 0.5 confidence are explicitly marked as uncertain for review. These thresholds are heuristics, not a guarantee of numeric accuracy.
+- OCR is configured for German and English printed text. Handwriting, standalone photos, perspective correction and arbitrary languages are not supported. OCR output is marked for source verification; ambiguous values must remain unverified. Mixed pages with an existing but incomplete text layer can still need manual review.
 - Each PDF is limited to 10 MB. Combined extracted text and task description must fit within 16000 characters.
 - Only READY PDFs from Sokosumi public Vercel Blob storage are supported. Incomplete uploads and unsupported storage fail explicitly.
 - Arithmetic checks cover EUR, USD, GBP and CHF with two decimal places. Unsupported adjustments, missing values and other currencies remain unverified.
@@ -228,3 +230,7 @@ Keep `.env`, `.local/`, wallet secrets, and generated resource state out of git.
 - [ ] Record a paid run of the latest PDF attachment flow and link its transaction evidence.
 
 The saved paid text-task receipt above is available as earlier payment evidence. Do not present the free PDF test as a paid run.
+
+OCR verification uses temporary rasterized copies of the existing offer and expensive-invoice fixtures under ignored `.local/`, not additional source documents. The macOS path is exercised locally; the Linux Tesseract path requires validation on a Linux host.
+
+A macOS OCR trial on rasterized copies of the offer and expensive invoice produced the expected +EUR 1008.53 gross document difference. Several line-level numbers were ambiguous and the report explicitly marked those checks incomplete; do not interpret this trial as complete OCR accuracy. OCR comparison took 92 seconds in that run.
