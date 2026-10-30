@@ -6,4 +6,4 @@ const modelContextWindowTokens = contextWindow ? Number(contextWindow) : undefin
 if (modelContextWindowTokens !== undefined && (!Number.isSafeInteger(modelContextWindowTokens) || modelContextWindowTokens <= 0)) {
  throw new Error('ZAI_CONTEXT_WINDOW_TOKENS must be a positive integer');
 }
-export default defineAgent({model:provider.chatModel(process.env.ZAI_MODEL!),modelContextWindowTokens,defaultTools:false});
+export default defineAgent({model:provider.chatModel(process.env.ZAI_MODEL!),modelContextWindowTokens,reasoning:"low",modelOptions:{providerOptions:{zai:{reasoning:{effort:"low"}}}},defaultTools:false});

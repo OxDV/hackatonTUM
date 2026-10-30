@@ -1,16 +1,70 @@
-# TUM Blockchain & AI Hackathon quickstart
+# Offer Invoice Compare
 
-Start with the [TUM hackathon setup guide](https://www.masumi.network/tum-hackathon).
-It covers your account, Coworker, first task, and payment checkpoints.
-Join the [TUM Sokosumi Workspace](https://preprod.sokosumi.com/join/GTAHB3OQFWgg8rGetMfleiqgeL6_ltdW) with your own account.
+An AI coworker for procurement teams, property managers, and small businesses that need to check a supplier invoice against its quotation before approving payment.
 
-This agent compares a supplier offer PDF with an invoice PDF and reports mismatches.
-Extraction rules are in `agent/extraction-prompt.md`. Comparison rules are in `agent/comparison-prompt.md`.
-The worker extracts JSON, then returns the Markdown comparison report.
-The paid and free inputs stay one text field named `prompt`, with both documents in that text.
-Sokosumi accepts that text, not the PDF bytes. Extract both PDFs into the task description before you create the task. Keep the description within 16000 characters.
-Use the [full agent brief](https://www.masumi.network/tum-hackathon/agent) for your coding agent.
-Before handing in your project, follow the [submission checklist](https://www.masumi.network/tum-hackathon/submission).
+Upload an offer and an invoice to a Sokosumi task. The agent produces an English comparison report with changed prices, quantities, additional charges, source references, calculation evidence, and a supplier email draft when clarification is needed. It distinguishes document-total differences from potential overcharges and flags incomplete evidence.
+
+## How it works
+
+1. The worker reads the assigned task and its two PDF attachments, preserving filenames and page numbers.
+2. The model extracts structured data. Zod validates the result; one format-repair attempt is allowed before an invalid extraction blocks comparison.
+3. Application code checks line arithmetic, supported VAT calculations, net subtotals, gross totals, and document-total differences using exact rational arithmetic.
+4. The model interprets scope, matches items, and writes the report and email draft. The application appends its calculation evidence.
+5. Sokosumi stores the result and supports follow-up questions. In paid mode, model execution waits for confirmed escrow; the worker submits the result hash and separately checks the seller receipt.
+
+Extraction and comparison rules are in [agent/extraction-prompt.md](agent/extraction-prompt.md) and [agent/comparison-prompt.md](agent/comparison-prompt.md). Source quotes retain their original language. Email drafts are never sent automatically.
+
+## Business case and deployment
+
+The intended buyer pays per comparison to reduce manual invoice review and prepare specific questions for the supplier. The demo payment is 1 test USDM on Cardano Preprod; this is a test price, not production pricing or evidence of commercial demand.
+
+A real deployment would run Eve and a single worker continuously on an operator-managed host, with a dedicated payment service, database and seller wallet. Customers would submit tasks through Sokosumi. Model access, workspace access and credits must be configured separately. Production operation would also require document-retention rules, monitoring, recovery procedures, security review and a validated price covering inference and operating costs. This repository demonstrates the workflow on Preprod.
+
+## Inputs and limitations
+
+Both paid and free Sokosumi tasks support two PDF attachments. Upload exactly one offer and one invoice, wait for both uploads to finish, then mark the task READY. Text-only tasks remain supported. Suggested description:
+
+> Compare the two attached PDFs. Prepare an English report and a supplier email draft.
+
+The worker snapshots extracted text before choosing the payment branch and uses that snapshot after escrow confirmation. The Task payment input hash retains the authoritative task description required by the existing protocol; it is not a separate cryptographic commitment to PDF bytes. The standalone Standard API `/start_job` accepts extracted text in one `prompt` field, not file uploads.
+
+- Node.js 24 or newer is required.
+- PDF extraction uses PDFKit through Swift on macOS (Xcode command-line tools required), or Poppler's `pdftotext` on Linux.
+- Scanned PDFs require OCR before upload; OCR is not included.
+- Each PDF is limited to 10 MB. Combined extracted text and task description must fit within 16000 characters.
+- Only READY PDFs from Sokosumi public Vercel Blob storage are supported. Incomplete uploads and unsupported storage fail explicitly.
+- Arithmetic checks cover EUR, USD, GBP and CHF with two decimal places. Unsupported adjustments, missing values and other currencies remain unverified.
+- Extraction, item matching and contractual interpretation use a model and require human review. Calculation checks do not certify extraction accuracy or authorize payment.
+- Reports, follow-up answers and supplier email drafts are in English.
+
+## Sample results and validation
+
+The only document fixtures are the offer and three invoice variants in [test_files](test_files/).
+
+| Invoice | Net difference | Gross difference | Expected outcome |
+|---|---:|---:|---|
+| `1-Correct-Musterrechnung.pdf` | EUR 0.00 | EUR 0.00 | Matching prices and totals |
+| `1-More-Expensive-Musterrechnung.pdf` | +EUR 847.50 | +EUR 1,008.53 | Three price increases, an additional position and a travel charge |
+| `1-Reduced-Cost-Musterrechnung.pdf` | −EUR 348.00 | −EUR 414.12 | Four reduced prices |
+
+Differences are invoice minus offer; they are not automatically overcharges. Local arithmetic regression tests use values transcribed from these PDFs. Model trials on these three pairs produced English reports in 85, 88 and 115 seconds with low reasoning effort. These are observed local timings, not a latency guarantee or a general quality benchmark. Both processing stages, schema validation and exact arithmetic remain enabled.
+
+## Cardano Preprod evidence
+
+The project uses Sokosumi for tasks and coworker execution, Masumi Payment Service for escrow and result submission, Cardano Preprod for settlement, and Blockfrost to check the seller's net token receipt. Model requests use an OpenAI-compatible provider interface; the demonstrated configuration uses OpenRouter.
+
+| Evidence | Value |
+|---|---|
+| Earlier completed paid text task | `01a18d7f-b336-751a-a017-80b8cb365b12` |
+| Confirmed seller withdrawal transaction | [`51e3781f7dbdafd71c28a8bb1e0fd71222f8ce65b319fa178c081c34809ce77b`](https://preprod.cardanoscan.io/transaction/51e3781f7dbdafd71c28a8bb1e0fd71222f8ce65b319fa178c081c34809ce77b) |
+| Saved receipt verification | Task completed; payment settled; seller net receipt: 1000000 atomic units of the test USDM asset |
+| Completed PDF attachment task, without payment | `01a18e20-ff59-753d-b500-ab6e994d5795` |
+
+These entries describe saved execution evidence, not a new live chain check. The earlier paid task used extracted text. A paid end-to-end run of the latest PDF attachment flow still needs to be recorded for submission. Demo video and Devfolio links are not yet available.
+
+Evidence identifiers belong to this project. Do not reuse them as configuration for another deployment. Keep runtime records, credentials and wallet data private.
+
+For hackathon setup, see the [TUM guide](https://www.masumi.network/tum-hackathon), [agent brief](https://www.masumi.network/tum-hackathon/agent), and [submission checklist](https://www.masumi.network/tum-hackathon/submission). This project targets the Cardano track; its paid demonstration is required for that submission even though payments can be disabled during development.
 
 ## Start the local agent
 
@@ -19,8 +73,8 @@ Use Node.js 24 or newer for the agent and CLI.
 1. Clone this repository and enter its directory:
 
    ```sh
-   git clone https://github.com/masumi-network/tum-hackathon-quickstart.git
-   cd tum-hackathon-quickstart
+   git clone https://github.com/OxDV/hackatonTUM.git
+   cd hackatonTUM
    ```
 
 2. Install the locked dependencies and prepare private configuration:
@@ -120,7 +174,7 @@ The worker uses the organization slug for task discovery and the organization ID
 Comments and paid tasks use the same Coworker and Workspace checks.
 To return to Personal Workspace tasks, finish active work, clear both organization settings, and restart the worker.
 
-## Optional Preprod payments
+## Enable Preprod payments
 
 Prepare your own [Masumi Payment Service](https://github.com/masumi-network/masumi-payment-service) with its current setup instructions.
 Use a dedicated database, encryption key, and selling wallet for this project.
@@ -161,6 +215,16 @@ npm test
 ```
 
 These tests check local logic. Test your own model connection, Coworker task, and seller receipt through the full setup flow.
-The current `npm audit` reports three dependency findings: two high and one moderate, across `eve`, `undici`, and `zod`.
+A previous `npm audit` reported three dependency findings: two high and one moderate, across `eve`, `undici`, and `zod`. Run a fresh audit before deployment; this is not a current audit result.
 Review these before public deployment. Dependency versions stay pinned in `package-lock.json`.
 Keep `.env`, `.local/`, wallet secrets, and generated resource state out of git.
+
+
+## Submission status
+
+- [ ] Publish the latest implementation in the public repository before Saturday 31 October, 15:00.
+- [ ] Publish a demo video of at most 2.5 minutes, showing the target user, problem, business case and a paid job from start to finish.
+- [ ] Publish the Devfolio description with architecture, Cardano tools and the real-use deployment approach.
+- [ ] Record a paid run of the latest PDF attachment flow and link its transaction evidence.
+
+The saved paid text-task receipt above is available as earlier payment evidence. Do not present the free PDF test as a paid run.

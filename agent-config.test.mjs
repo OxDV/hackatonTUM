@@ -21,3 +21,5 @@ test('custom model context window reaches Eve and rejects invalid token limits',
  assert.equal((await configFor('')).modelContextWindowTokens,undefined);
  assert.equal((await configFor(undefined)).modelContextWindowTokens,undefined);
 });
+
+test("regression: explicit low reasoning reaches Eve and the OpenRouter request options",async()=>{const config=await configFor(undefined);assert.equal(config.reasoning,"low");assert.equal(config.modelOptions.providerOptions.zai.reasoning.effort,"low");});
