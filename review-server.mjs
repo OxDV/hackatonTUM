@@ -2,10 +2,10 @@ import {createServer} from 'node:http';
 import {readFileSync} from 'node:fs';
 import {join} from 'node:path';
 import {loadReview} from './review-store.mjs';
-const assets={'/':['review/index.html','text/html'],'/app.mjs':['review/app.mjs','text/javascript'],'/match.mjs':['review/match.mjs','text/javascript'],'/style.css':['review/style.css','text/css'],'/pdf.mjs':['node_modules/pdfjs-dist/build/pdf.mjs','text/javascript'],'/pdf.worker.mjs':['node_modules/pdfjs-dist/build/pdf.worker.mjs','text/javascript']};
+const assets={'/':['review/index.html','text/html'],'/app.mjs':['review/app.mjs','text/javascript'],'/match.mjs':['review/match.mjs','text/javascript'],'/style.css':['review/style.css','text/css'],'/montserrat-latin.woff2':['node_modules/@fontsource-variable/montserrat/files/montserrat-latin-wght-normal.woff2','font/woff2'],'/montserrat-latin-ext.woff2':['node_modules/@fontsource-variable/montserrat/files/montserrat-latin-ext-wght-normal.woff2','font/woff2'],'/pdf.mjs':['node_modules/pdfjs-dist/build/pdf.mjs','text/javascript'],'/pdf.worker.mjs':['node_modules/pdfjs-dist/build/pdf.worker.mjs','text/javascript']};
 createServer((req,res)=>{
  res.setHeader('Cache-Control','no-store');res.setHeader('Referrer-Policy','no-referrer');res.setHeader('X-Content-Type-Options','nosniff');
- res.setHeader('Content-Security-Policy',"default-src 'self'; script-src 'self'; worker-src 'self' blob:; style-src 'self' 'unsafe-inline'; img-src 'self' blob: data:; connect-src 'self'; frame-ancestors 'none'");
+ res.setHeader('Content-Security-Policy',"default-src 'self'; script-src 'self'; worker-src 'self' blob:; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self' blob: data:; connect-src 'self'; frame-ancestors 'none'");
  try{
   if(req.method!=='GET'){res.writeHead(405);return res.end();}
   const path=new URL(req.url,'http://localhost').pathname;

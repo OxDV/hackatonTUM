@@ -1,9 +1,9 @@
 const uuid=/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
-const headers={'Cache-Control':'no-store','Referrer-Policy':'no-referrer','X-Content-Type-Options':'nosniff','X-Robots-Tag':'noindex, nofollow','Content-Security-Policy':"default-src 'self'; script-src 'self'; worker-src 'self' blob:; style-src 'self' 'unsafe-inline'; img-src 'self' blob: data:; connect-src 'self'; frame-ancestors 'none'"};
+const headers={'Cache-Control':'no-store','Referrer-Policy':'no-referrer','X-Content-Type-Options':'nosniff','X-Robots-Tag':'noindex, nofollow','Content-Security-Policy':"default-src 'self'; script-src 'self'; worker-src 'self' blob:; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self' blob: data:; connect-src 'self'; frame-ancestors 'none'"};
 const reply=(data,status=200)=>new Response(JSON.stringify(data),{status,headers:{...headers,'Content-Type':'application/json'}});
 export async function handle(request,env,assets){
  const path=new URL(request.url).pathname;
- if(request.method==='GET'&&assets[path]){const a=assets[path];return new Response(a.body,{headers:{...headers,'Content-Type':a.type}});}
+ if(request.method==='GET'&&assets[path]){const a=assets[path],body=a.encoding==='base64'?Uint8Array.from(atob(a.body),c=>c.charCodeAt(0)):a.body;return new Response(body,{headers:{...headers,'Content-Type':a.type}});}
  if(!env.BUCKET)return reply({error:'Storage unavailable'},503);
  if(path==='/api/publish'&&request.method==='POST'){
   if(!env.REVIEW_UPLOAD_KEY||request.headers.get('Authorization')!=='Bearer '+env.REVIEW_UPLOAD_KEY)return reply({error:'Unauthorized'},401);
