@@ -119,3 +119,7 @@ Each issue contains:
 - affects_comparison: boolean
 
 Use the exact top-level structure above. Do not add a comparison or a verdict at this stage.
+
+Source references MUST be plain strings containing filename, page/section and an exact short quote. Totals source_references is an array of these strings. Empty or incomplete documents must use needs_review or missing_document, never ready.
+
+Use compact JSON without indentation. Extract evidence faithfully; do not spend reasoning on arithmetic checks or drafting a report during extraction. Application code checks arithmetic in the next stage. Preserve every line, value, source reference and uncertainty.

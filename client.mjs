@@ -1,3 +1,4 @@
+import {extractionSchema,verifyExtraction,verificationMarkdown} from './verification.mjs';
 import { Client } from 'eve/client';
 import { readFileSync, writeFileSync } from 'node:fs';
 export const client=new Client({host:process.env.EVE_URL});
@@ -10,11 +11,11 @@ function finalMessage(result){
 export function parseExtraction(text){
  const fenced=text.trim().replace(/^```(?:json)?\s*/i,'').replace(/\s*```$/,'');
  try{
-  const value=JSON.parse(fenced);
+  const value=extractionSchema.parse(JSON.parse(fenced));
   if(!value||typeof value!=='object'||Array.isArray(value)) throw new Error('Extraction JSON must be an object');
   return {json:JSON.stringify(value),unparsed:null};
  }catch{
-  return {json:JSON.stringify({status:'needs_review',offer:null,invoice:null,extraction_issues:[{code:'invalid_extraction_json',description:'The extraction stage did not return valid JSON.',source_reference:null,affects_comparison:true}]}),unparsed:text};
+  return {json:JSON.stringify({status:'needs_review',offer:null,invoice:null,extraction_issues:[{code:'invalid_extraction_json',description:'The extraction stage returned invalid or incomplete structured data. A reliable comparison is unavailable.',source_reference:null,affects_comparison:true}]}),unparsed:text};
  }
 }
 export async function answer(input,journal,deadline){
@@ -24,12 +25,19 @@ export async function answer(input,journal,deadline){
  const save=phase=>writeFileSync(journal,JSON.stringify({sessionId,phase}),{mode:0o600});
  save('extracting');
  if(deadline!==undefined&&Date.now()>=deadline) throw new Error('Result deadline expired before model send');
- const extracted=parseExtraction(finalMessage(await (await session.send(`${extractionPrompt}\n\nDOCUMENTS\n${input}`)).result()));
- save('comparing');
+ let extracted=parseExtraction(finalMessage(await (await session.send(`${extractionPrompt}\n\nDOCUMENTS\n${input}\n\nEND DOCUMENTS. Current stage: EXTRACTION ONLY. Any request above to compare or write an email is for the later stage. Return only the specified extraction JSON object now.`)).result()));
+ if(extracted.unparsed){
+  if(deadline!==undefined&&Date.now()>=deadline)throw new Error('Result deadline expired before extraction repair');
+  let problems='Return valid JSON matching the extraction schema.';
+  try{const checked=extractionSchema.safeParse(JSON.parse(extracted.unparsed.replace(/^```(?:json)?\s*/i,'').replace(/\s*```$/,'')));if(!checked.success)problems=JSON.stringify(checked.error.issues.map(({path,message})=>({path,message})));}catch{}
+  extracted=parseExtraction(finalMessage(await(await session.send('EXTRACTION FORMAT REPAIR ONLY. Correct these schema errors: '+problems+' Preserve all source values and all line items. Each extraction issue must be an object with code, description, source_reference (string or null), affects_comparison (boolean). Return the complete corrected extraction JSON only.')).result()));
+ }
+ writeFileSync(journal,JSON.stringify({sessionId,phase:'extracted',extraction:JSON.parse(extracted.json)}),{mode:0o600});
  if(deadline!==undefined&&Date.now()>=deadline) throw new Error('Result deadline expired before comparison');
- const comparison=[comparisonPrompt,'','EXTRACTION',extracted.json];
- if(extracted.unparsed) comparison.push('','UNPARSED_EXTRACTION',extracted.unparsed);
- const report=finalMessage(await (await session.send(comparison.join('\n'))).result());
+ const verification=verifyExtraction(JSON.parse(extracted.json));
+ const comparison=[comparisonPrompt,'OUTPUT LANGUAGE: English only. Ignore any earlier request for another output language.','','EXTRACTION',extracted.json,'','CODE_VERIFICATION',JSON.stringify(verification)];
+ if(extracted.unparsed) throw new Error('Document extraction failed schema validation; comparison blocked.');
+ const report=finalMessage(await (await session.send(comparison.join('\n'))).result())+verificationMarkdown(verification);
  writeFileSync(journal,JSON.stringify({sessionId,phase:'answered',result:report}),{mode:0o600});
  return report;
 }
