@@ -1,6 +1,6 @@
 import {execFile} from 'node:child_process';
 import {promisify} from 'node:util';
-import {mkdtemp,writeFile,rm} from 'node:fs/promises';
+import {mkdtemp,writeFile,rm,mkdir} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {fileURLToPath} from 'node:url';
@@ -48,6 +48,7 @@ export async function taskInput(taskId,description,target){
  const inputs=files.filter(f=>f.origin==='USER_UPLOAD');
  if(!inputs.length)return description;
  if(inputs.length!==2)throw Error('Attach exactly one offer PDF and one invoice PDF');
+ const snapshot=join('.local','review-assets',taskId);await mkdir(snapshot,{recursive:true,mode:0o700});const manifest=[];
  const parts=[description||'Compare the attached offer and invoice.'];
  for(const f of inputs){
   if(f.taskId!==taskId||f.status!=='READY'||f.mimeType!=='application/pdf')throw Error('Task PDFs must be ready before execution');
@@ -58,9 +59,12 @@ export async function taskInput(taskId,description,target){
   if(!response.ok)throw Error(`Attachment HTTP ${response.status}`);
   const chunks=[];let size=0;
   for await(const chunk of response.body){size+=chunk.length;if(size>10*1024*1024)throw Error('PDF exceeds 10 MB');chunks.push(chunk);}
-  parts.push(await pdfText(Buffer.concat(chunks),f.name));
+  const bytes=Buffer.concat(chunks);
+  parts.push(await pdfText(bytes,f.name));
+  const path=join(snapshot,`${manifest.length}.pdf`);await writeFile(path,bytes,{mode:0o600});manifest.push({name:f.name,path});
  }
  const input=parts.join('\n\n');
  if(input.length>16000)throw Error('Combined PDF text exceeds 16000 characters; split the documents into smaller tasks');
+ await writeFile(join(snapshot,'manifest.json'),JSON.stringify(manifest),{mode:0o600});
  return input;
 }

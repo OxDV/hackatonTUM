@@ -11,3 +11,6 @@ docs/*.json
 
 # Local IDE configuration
 .idea/
+
+# Separate Sites source checkout and generated deployment bundle
+hosted-review/

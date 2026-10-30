@@ -1,3 +1,4 @@
+import {parseComparison,createReview} from './review-store.mjs';
 import {extractionSchema,verifyExtraction,verificationMarkdown} from './verification.mjs';
 import { Client } from 'eve/client';
 import { readFileSync, writeFileSync } from 'node:fs';
@@ -37,7 +38,18 @@ export async function answer(input,journal,deadline){
  const verification=verifyExtraction(JSON.parse(extracted.json));
  const comparison=[comparisonPrompt,'OUTPUT LANGUAGE: English only. Ignore any earlier request for another output language.','','EXTRACTION',extracted.json,'','CODE_VERIFICATION',JSON.stringify(verification)];
  if(extracted.unparsed) throw new Error('Document extraction failed schema validation; comparison blocked.');
- const report=finalMessage(await (await session.send(comparison.join('\n'))).result())+verificationMarkdown(verification);
- writeFileSync(journal,JSON.stringify({sessionId,phase:'answered',result:report}),{mode:0o600});
+ comparison.push('RESPONSE TRANSPORT: Return only a JSON object with report (the complete English Markdown report) and findings (an array). Each finding contains title, priority (high/medium/low), explanation, offerValue, invoiceValue, offer and invoice. Each evidence is null or {filename: exact source filename, page: integer source page, quote: short exact text to highlight}. Use null when a reliable page or quote is unavailable. Group unit-price and resulting line-total changes as one finding. Missing data is uncertainty, not a confirmed discrepancy. Do not create line tax discrepancies when only document VAT is stated. Never invent a match score.');
+ const response=finalMessage(await (await session.send(comparison.join('\n'))).result());
+ let structured;
+ try{structured=parseComparison(response);}catch{
+  if(deadline!==undefined&&Date.now()>=deadline)throw new Error('Result deadline expired before report format repair');
+  structured=parseComparison(finalMessage(await(await session.send('FORMAT REPAIR ONLY: Return the complete comparison as JSON {report:string,findings:array}. Preserve all findings and evidence. Every finding must contain title,priority (high/medium/low),explanation,offerValue,invoiceValue,offer,invoice. Evidence must be null or {filename:string,page:integer 1 to 20,quote:string}. Return JSON only.')).result()));
+ }
+
+ let report=structured.report+verificationMarkdown(verification);
+ const review=await createReview(journal,{...structured,report},JSON.parse(extracted.json));
+ if(review)report+=`\n\n[Open interactive PDF review](${review.url}) — available until ${new Date(review.expiresAt).toISOString()}.`;
+
+ writeFileSync(journal,JSON.stringify({sessionId,phase:'answered',extraction:JSON.parse(extracted.json),findings:structured.findings,result:report}),{mode:0o600});
  return report;
 }

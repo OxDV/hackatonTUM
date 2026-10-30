@@ -51,6 +51,20 @@ The only document fixtures are the offer and three invoice variants in [test_fil
 
 Differences are invoice minus offer; they are not automatically overcharges. Local arithmetic regression tests use values transcribed from these PDFs. Model trials on these three pairs produced English reports in 85, 88 and 115 seconds with low reasoning effort. These are observed local timings, not a latency guarantee or a general quality benchmark. Both processing stages, schema validation and exact arithmetic remain enabled.
 
+## Interactive PDF review
+
+The public viewer is hosted at https://offer-invoice-review.nettedskunk.chatgpt.site. The homepage contains no customer results. Each report is accessible only with its own random UUID link for 24 hours, without sign-in.
+
+For hosted publication set `REVIEW_BASE_URL=https://offer-invoice-review.nettedskunk.chatgpt.site` and `REVIEW_PUBLISH_URL=https://offer-invoice-review.nettedskunk.chatgpt.site/api/publish` in `.env`. The worker reads its private upload key from `.local/review-upload.env`; configure the matching `REVIEW_UPLOAD_KEY` as a secret on the hosted service. Restart the worker after configuration changes. Report uploads include the structured findings and snapshots of both PDFs. Hosted object storage is separate from the operator's machine; reading an already published report does not require the local agent to remain online.
+
+For local development, leave `REVIEW_PUBLISH_URL` empty, set `REVIEW_BASE_URL=http://127.0.0.1:21951` and run `npm run review`. `REVIEW_PORT` defaults to 21951.
+
+The interface shows two PDFs and structured findings. Selecting a finding first looks for a unique matching monetary row across the document, using a position number to disambiguate repeated amounts when available. It then tries unique literal quotes and fragments of abbreviated quotes. This recovers prices when a model cites a continuation page or includes ellipses. Ambiguous matches fall back to the cited page without a highlight. Scans without a text layer can be viewed but cannot receive text-based highlights. PDF rendering uses pinned PDF.js; no document is sent to an external viewer.
+
+The agent groups related price changes and avoids treating missing line-level tax data as a discrepancy. Findings and source references are model-generated and still need human review. Review marks are browser-local notes; they do not authorize payment or alter Sokosumi task status.
+
+Hosted links use cryptographically random UUIDv4 access tokens and expire 24 hours after the first successful upload. Local links use 256-bit random tokens. The server checks expiration for both report data and PDF requests, uses no-store responses and keeps the token in the URL fragment. Anyone holding the link can access the report until expiry. Expiration revokes server access; it does not delete downloaded copies or local files. Local reports and PDF snapshots remain under ignored `.local/reviews/` and `.local/review-assets/` until the operator removes them. Hosted access is denied after expiry and expired objects are removed when accessed; automatic background deletion is not currently scheduled. Keep these paths out of deployments of static assets and never place private PDFs in a public static directory. Local report storage must be retained and protected when hosting the review server.
+
 ## Cardano Preprod evidence
 
 The project uses Sokosumi for tasks and coworker execution, Masumi Payment Service for escrow and result submission, Cardano Preprod for settlement, and Blockfrost to check the seller's net token receipt. Model requests use an OpenAI-compatible provider interface; the demonstrated configuration uses OpenRouter.
@@ -61,6 +75,7 @@ The project uses Sokosumi for tasks and coworker execution, Masumi Payment Servi
 | Confirmed seller withdrawal transaction | [`51e3781f7dbdafd71c28a8bb1e0fd71222f8ce65b319fa178c081c34809ce77b`](https://preprod.cardanoscan.io/transaction/51e3781f7dbdafd71c28a8bb1e0fd71222f8ce65b319fa178c081c34809ce77b) |
 | Saved receipt verification | Task completed; payment settled; seller net receipt: 1000000 atomic units of the test USDM asset |
 | Completed PDF attachment task, without payment | `01a18e20-ff59-753d-b500-ab6e994d5795` |
+| Completed PDF task with a public report link, without payment | `01a18e73-f332-729c-86c4-1dbf039e1fa7` |
 
 These entries describe saved execution evidence, not a new live chain check. The earlier paid task used extracted text. A paid end-to-end run of the latest PDF attachment flow still needs to be recorded for submission. Demo video and Devfolio links are not yet available.
 
@@ -234,3 +249,7 @@ The saved paid text-task receipt above is available as earlier payment evidence.
 OCR verification uses temporary rasterized copies of the existing offer and expensive-invoice fixtures under ignored `.local/`, not additional source documents. The macOS path is exercised locally; the Linux Tesseract path requires validation on a Linux host.
 
 A macOS OCR trial on rasterized copies of the offer and expensive invoice produced the expected +EUR 1008.53 gross document difference. Several line-level numbers were ambiguous and the report explicitly marked those checks incomplete; do not interpret this trial as complete OCR accuracy. OCR comparison took 92 seconds in that run.
+
+Hosted service source is `review-hosted.mjs`; `scripts/build-hosted-review.mjs` embeds the viewer and pinned PDF.js assets into the separate ignored Sites checkout `hosted-review/`. Publish that checkout with the Sites workflow. The shared upload endpoint requires the operator key; public requests cannot create or enumerate reports. Upload retries reuse their saved UUID without extending its lifetime.
+
+The hosted viewer does not publish the local agent API. New jobs still require the agent, model and worker/payment services to be running. Direct marketplace callers also need an externally reachable agent API endpoint; the current loopback registration/API configuration alone is not proof of public purchasing availability. The PDF-link flow was verified through a completed free Sokosumi task, not a new paid purchase.
