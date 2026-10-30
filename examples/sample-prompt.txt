@@ -1,0 +1,13 @@
+OFFER
+Supplier: Northwind Parts
+Offer ID: OFF-100
+Date: 2026-10-01
+Line: Widget A, qty 2, unit 10.00, total 20.00
+Total: 20.00 EUR
+
+INVOICE
+Supplier: Northwind Parts
+Invoice ID: INV-100
+Date: 2026-10-20
+Line: Widget A, qty 3, unit 10.00, total 30.00
+Total: 30.00 EUR

@@ -4,8 +4,11 @@ Start with the [TUM hackathon setup guide](https://www.masumi.network/tum-hackat
 It covers your account, Coworker, first task, and payment checkpoints.
 Join the [TUM Sokosumi Workspace](https://preprod.sokosumi.com/join/GTAHB3OQFWgg8rGetMfleiqgeL6_ltdW) with your own account.
 
-This starter suggests five team names and recommends one.
-Adapt `agent/instructions.md` to build your own agent.
+This agent compares a supplier offer PDF with an invoice PDF and reports mismatches.
+Extraction rules are in `agent/extraction-prompt.md`. Comparison rules are in `agent/comparison-prompt.md`.
+The worker extracts JSON, then returns the Markdown comparison report.
+The paid and free inputs stay one text field named `prompt`, with both documents in that text.
+Sokosumi accepts that text, not the PDF bytes. Extract both PDFs into the task description before you create the task. Keep the description within 16000 characters.
 Use the [full agent brief](https://www.masumi.network/tum-hackathon/agent) for your coding agent.
 Before handing in your project, follow the [submission checklist](https://www.masumi.network/tum-hackathon/submission).
 
@@ -45,11 +48,12 @@ If installed, prefix an install command with `sfw`, such as `sfw npm ci`.
 
 ## Connect your Sokosumi Coworker
 
-Install Sokosumi CLI `1.0.4`. This starter uses its runtime adapter.
-Check compatibility before changing that version.
+Install Sokosumi CLI `1.1.0`. This starter uses its runtime adapter.
+`1.0.4` calls `GET /v1/users/me/workspace-access`, which Preprod no longer serves.
+`1.1.0` creates the Personal Workspace through `POST /v1/users/me/workspaces`.
 
 ```sh
-npm install --global @masumi_network/sokosumi@1.0.4
+npm install --global @masumi_network/sokosumi@1.1.0
 sokosumi --version
 sokosumi skills
 ```
@@ -69,7 +73,7 @@ sokosumi skills
 5. Create a task in your Personal Workspace. Replace `YOUR_COWORKER_ID` with your Coworker ID:
 
    ```sh
-   sokosumi --preprod tasks create --personal --coworker-id YOUR_COWORKER_ID --description "Suggest names for our hackathon team." --status READY --json
+   sokosumi --preprod tasks create --personal --coworker-id YOUR_COWORKER_ID --name "Offer invoice check" --description "$(cat examples/sample-prompt.txt)" --status READY --json
    ```
 
 Open the task in Sokosumi and check that it reaches `COMPLETED` with an answer.
@@ -109,7 +113,7 @@ Finish active Tasks and pending seller receipt checks before you switch Workspac
 5. Create a task in the TUM Workspace:
 
    ```sh
-   sokosumi --preprod tasks create --organization-slug YOUR_WORKSPACE_SLUG --coworker-id YOUR_COWORKER_ID --description "Suggest names for our hackathon team." --status READY --json
+   sokosumi --preprod tasks create --organization-slug YOUR_WORKSPACE_SLUG --coworker-id YOUR_COWORKER_ID --name "Offer invoice check" --description "$(cat examples/sample-prompt.txt)" --status READY --json
    ```
 
 The worker uses the organization slug for task discovery and the organization ID for runtime execution.
