@@ -78,7 +78,7 @@ export async function createPaidAdapter({save,answer,core:providedCore,mps:provi
     if(Date.now()>=Number(p.payment.submitResultTime))throw new Error('Result deadline expired before model');
     state=await persist(task,state,{...p,stage:'model-pending'});
     if(Date.now()>=Number(p.payment.submitResultTime))throw new Error('Result deadline expired before model send');
-    const result=await answer(state.input,`.local/${task.id}-session.json`,Number(p.payment.submitResultTime));
+    const result=await answer(state.modelInput??state.input,`.local/${task.id}-session.json`,Number(p.payment.submitResultTime));
     if(typeof result!=='string'||!result.trim())throw new Error('Model did not return a result');
     writeFileSync(`.local/${task.id}.txt`,result,{mode:0o600});
     return persist(task,state,{...p,stage:'result-saved',result,resultHash:taskHash(result)});

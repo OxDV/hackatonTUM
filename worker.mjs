@@ -1,3 +1,4 @@
+import {taskInput} from './task-files.mjs';
 import {execFileSync} from 'node:child_process';
 import {existsSync,readFileSync,writeFileSync} from 'node:fs';
 import {acquireWorkerLock} from './worker-lock.mjs';
@@ -22,11 +23,12 @@ while(true){
  const journal=`.local/${t.id}.json`,resultFile=`.local/${t.id}.txt`;
  let state=existsSync(journal)?JSON.parse(readFileSync(journal,'utf8')):{};
  if(t.status==='READY'&&!state.phase){writeFileSync(journal,JSON.stringify({phase:'starting'}),{mode:0o600});const started=cli(['runtime','start',t.id,...target.runtimeArgs,'--coworker-id',id]);state={phase:'started',input:started.description};writeFileSync(journal,JSON.stringify(state),{mode:0o600});}
+ if(state.phase==='started'&&!state.paid&&!state.attachmentsResolved){state={...state,modelInput:await taskInput(t.id,state.input,target),attachmentsResolved:true};writeFileSync(journal,JSON.stringify(state),{mode:0o600});}
  if(state.paid&&process.env.PAID_TASKS_ENABLED!=='true')continue;
  if(state.paid||(state.phase==='started'&&process.env.PAID_TASKS_ENABLED==='true'&&isPaidReady())){state=await paid.advance(t,state);if(state.phase==='completed')await reply(t);continue;}
  if(state.phase==='started'){
  writeFileSync(journal,JSON.stringify({...state,phase:'model-pending'}),{mode:0o600});
- const result=await answer(state.input,`.local/${t.id}-session.json`);
+ const result=await answer(state.modelInput??state.input,`.local/${t.id}-session.json`);
  writeFileSync(resultFile,result,{mode:0o600});state={...state,phase:'result-saved'};writeFileSync(journal,JSON.stringify(state),{mode:0o600});
  }
  if(state.phase==='result-saved'){

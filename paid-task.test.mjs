@@ -62,3 +62,16 @@ test('paid execution rejects another Workspace or Coworker before any saved stat
  ])await assert.rejects(adapter.advance(task,{input:'abc'}),/configured Coworker and Workspace/);
  assert.equal(writes,0);
 });
+
+test('regression: paid execution uses the saved PDF text while quote hashes authoritative Task description',async()=>{
+ // Extracted totals from the existing offer and expensive invoice fixtures.
+ const modelInput='FILE: 1-Angebot_Musterhandwerker.pdf\nPAGE 2\nGesamtsumme (brutto) 8982,12 €\nFILE: 1-More-Expensive-Musterrechnung.pdf\nPAGE 2\nGesamtsumme (brutto) 9.990,65 €';
+ const input='Compare attached offer and invoice';let requested;
+ const quote=await createPaidAdapter({target,core,registration,save:async()=>{},answer:async()=>{},mps:async(_,body)=>{requested=body;return payment;}});
+ await quote.advance(task,{input,modelInput,attachmentsResolved:true});
+ assert.equal(requested.inputHash,taskHash(input));
+ let received;
+ const adapter=await createPaidAdapter({target,core,registration,save:async()=>{},mps:async()=>({...payment,onChainState:'FundsLocked',CurrentTransaction:{status:'Confirmed',newOnChainState:'FundsLocked'}}),answer:async text=>{received=text;throw Error('captured test input');}});
+ await assert.rejects(adapter.advance(task,{input,modelInput,attachmentsResolved:true,paid:{stage:'awaiting-escrow',payment}}),/captured test input/);
+ assert.equal(received,modelInput);
+});
