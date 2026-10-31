@@ -103,6 +103,7 @@ The project uses Sokosumi for tasks and coworker execution, Masumi Payment Servi
 | Submission paid batch PDF task | `01a191f4-d69b-7660-9828-e553a3294926` |
 | Submission escrow lock (`FundsLocked`) | [`f3597c58c6a79599dfd9a8386fc769321006fddf555d423dde27ffc8c25ddee0`](https://preprod.cardanoscan.io/transaction/f3597c58c6a79599dfd9a8386fc769321006fddf555d423dde27ffc8c25ddee0) |
 | Submission result hash (`ResultSubmitted`) | [`a5bb84051d53ba242b37e002ce5aaa7c09d63d5de6d552f00ff8799a0c9848a0`](https://preprod.cardanoscan.io/transaction/a5bb84051d53ba242b37e002ce5aaa7c09d63d5de6d552f00ff8799a0c9848a0) |
+| Submission seller withdrawal (`Withdrawn`) | [`91fd6519b0f87453a615a139f22e3a703200dfaf759483b966c24af88ec21a29`](https://preprod.cardanoscan.io/transaction/91fd6519b0f87453a615a139f22e3a703200dfaf759483b966c24af88ec21a29) |
 | Settled paid batch PDF task | `01a191b3-ee01-73bd-a236-67a0b6cc2007` |
 | Settled batch PDF escrow lock (`FundsLocked`) | [`47ba1988815187051a19d3ca138372f4fc6449c2f533d29657b134a2cf67ee59`](https://preprod.cardanoscan.io/transaction/47ba1988815187051a19d3ca138372f4fc6449c2f533d29657b134a2cf67ee59) |
 | Settled batch PDF result hash (`ResultSubmitted`) | [`3e29aaa9d04e8276e0554a259fb59fecb1df35dc4dbca08daef58f200023040e`](https://preprod.cardanoscan.io/transaction/3e29aaa9d04e8276e0554a259fb59fecb1df35dc4dbca08daef58f200023040e) |
