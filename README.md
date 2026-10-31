@@ -46,7 +46,7 @@ Only Sokosumi's built-in Soko Bot receives mailbox access. This external Coworke
 1. Connect Gmail to Soko Bot in the same Preprod account and use the Personal Workspace configured for this worker.
 2. Ask Soko Bot to search the supplier's emails, identify the offer and invoice PDF attachments, and ask which periods to check. A text choice works; native chat checkboxes are not required by this implementation.
 3. After selecting periods, ask it to use `save_email_attachment`, then `create_task` with this Coworker's ID, the returned Files `fileIds`, and status `READY`. It must attach the actual saved PDFs, not only paste extracted text. Wait for all attachments to be ready.
-4. For more than one invoice, include one exact JSON line in the task description. Use the actual saved attachment filenames and selected period labels:
+4. A short natural-language description plus the actual PDF files is enough. For multiple invoices, the agent identifies the reference offer and invoice periods from the PDF content and task instructions. It validates that every file is included exactly once and caches this plan before running separate comparisons. Ambiguous roles require clarification. An optional explicit mapping remains supported for scripted integrations:
 
    ```text
    OIC_BATCH: {"offer":"1-Angebot_Musterhandwerker.pdf","invoices":[{"filename":"1-Correct-Musterrechnung.pdf","label":"August"},{"filename":"1-Reduced-Cost-Musterrechnung.pdf","label":"September"},{"filename":"1-More-Expensive-Musterrechnung.pdf","label":"October"}]}
@@ -56,7 +56,7 @@ The four existing PDF fixtures above are independent demo variants. Month labels
 
 Suggested Soko Bot request:
 
-> Find the offer and invoices from the selected supplier in my connected Gmail. List the available periods and attachment names, then wait for my selection. Save only the selected invoice PDFs and the offer PDF to Files. Create one READY task assigned to Offer Invoice Compare, attaching their saved fileIds. For multiple invoices, add an OIC_BATCH JSON line containing the exact offer filename and an invoices array of filename and label pairs. Labels must reflect my selection, without inventing document dates. Request a comparison in the invoice document language and one interactive review link. Do not send emails or modify my mailbox.
+> Find the offer and invoices from the selected supplier in my connected Gmail. List the available periods and attachment names, then wait for my selection. Save only the selected invoice PDFs and the offer PDF to Files. Create one READY task assigned to Offer Invoice Compare, attaching their saved fileIds. Describe which selected invoices should be compared against the offer. Labels must reflect my selection, without inventing document dates. Request a comparison in the invoice document language and one interactive review link. Do not send emails or modify my mailbox.
 
 A live October task confirmed that Soko Bot's saved PDFs arrive as `USER_UPLOAD` with uploader type `sokoBot`; the existing origin filter accepts them and excludes `TASK_OUTPUT`. Core also appends extracted Files text to the task description. The worker uses downloaded PDFs as the source and removes that duplicate appended block before constructing its single-pair input. A task that mentions attachments but receives no input files fails explicitly rather than silently running a text-only comparison.
 

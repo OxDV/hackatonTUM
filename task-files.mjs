@@ -75,9 +75,11 @@ export async function taskInput(taskId,description,target){
   const text=await pdfText(bytes,f.name);parts.push(text);documents.push({name:f.name,text});
   const path=join(snapshot,`${manifest.length}.pdf`);await writeFile(path,bytes,{mode:0o600});manifest.push({name:f.name,path});
  }
- const input=plan?batchPrefix+JSON.stringify({plan,documents}):parts.join('\n\n');
+ const batch=!!plan||inputs.length>2;
+ const input=batch?batchPrefix+JSON.stringify({plan,instructions:instruction,documents}):parts.join('\n\n');
+ if(batch&&input.length>64000)throw Error('Batch PDF text exceeds 64000 characters; split the documents into smaller tasks');
  if(plan){const offer=documents.find(d=>d.name===plan.offer);for(const invoice of plan.invoices){if(offer.text.length+documents.find(d=>d.name===invoice.filename).text.length>15000)throw Error('Each offer/invoice pair must fit within 15000 extracted characters');}}
- else if(input.length>16000)throw Error('Combined PDF text exceeds 16000 characters; split the documents into smaller tasks');
+ else if(!batch&&input.length>16000)throw Error('Combined PDF text exceeds 16000 characters; split the documents into smaller tasks');
  await writeFile(join(snapshot,'manifest.json'),JSON.stringify(manifest),{mode:0o600});
  return input;
 }

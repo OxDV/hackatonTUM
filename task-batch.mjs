@@ -10,7 +10,7 @@ const planSchema=z.object({offer:z.string().min(1),invoices:z.array(z.object({fi
 export const batchPrefix='OIC_BATCH_INPUT\n';
 export function batchPlan(description,names){
  const line=String(description).split('\n').find(line=>line.startsWith('OIC_BATCH:'));
- if(!line){if(names.length>2)throw Error('Multiple invoices require an OIC_BATCH mapping in the task description');return null;}
+ if(!line)return null;
  const plan=planSchema.parse(JSON.parse(line.slice('OIC_BATCH:'.length)));
  const selected=[plan.offer,...plan.invoices.map(i=>i.filename)];
  if(new Set(selected).size!==selected.length||new Set(plan.invoices.map(i=>i.label)).size!==plan.invoices.length||new Set(names).size!==names.length||names.length!==selected.length||selected.some(n=>!names.includes(n)))throw Error('Batch mapping must identify every attached PDF exactly once with unique labels');
@@ -24,12 +24,24 @@ export function comparisonStatus(extraction,findings){
  if(extraction.status!=='ready'||issues.some(i=>i.affects_comparison)||v.limitations.length||!v.checks.length||findings.some(f=>!f.kind||f.kind==='uncertainty'))return 'uncertain';
  return 'matched';
 }
-export async function answerBatch(input,journal,deadline,answerPair,createDraft){
+export async function answerBatch(input,journal,deadline,answerPair,createDraft,inferPlan){
  const payload=JSON.parse(input.slice(batchPrefix.length));
- const plan=planSchema.parse(payload.plan);
- if(!Array.isArray(payload.documents)||payload.documents.length!==plan.invoices.length+1)throw Error('Invalid batch documents');
+ if(!Array.isArray(payload.documents)||payload.documents.length<2||payload.documents.length>4||payload.documents.some(d=>typeof d.name!=='string'||typeof d.text!=='string'))throw Error('Invalid batch documents');
+ let plan=payload.plan;
+ if(!plan){
+  if(!inferPlan)throw Error('Automatic batch planning is unavailable');
+  const key=createHash('sha256').update(JSON.stringify({instructions:payload.instructions,documents:payload.documents})).digest('hex');
+  const path=journal.replace(/\.json$/,'-plan.json');
+  const previous=existsSync(path)?JSON.parse(readFileSync(path,'utf8')):null;
+  plan=previous?.key===key?previous.plan:await inferPlan(payload.instructions||'',payload.documents,deadline);
+  plan=batchPlan('OIC_BATCH: '+JSON.stringify(plan),payload.documents.map(d=>d.name));
+  writeFileSync(path,JSON.stringify({key,plan}),{mode:0o600});
+ }
+ plan=planSchema.parse(plan);
+ if(payload.documents.length!==plan.invoices.length+1)throw Error('Invalid batch documents');
  batchPlan('OIC_BATCH: '+JSON.stringify(plan),payload.documents.map(d=>d.name));
  const offer=payload.documents.find(d=>d.name===plan.offer);
+ for(const invoice of plan.invoices){const source=payload.documents.find(d=>d.name===invoice.filename);if(offer.text.length+source.text.length>15000)throw Error('Each offer/invoice pair must fit within 15000 extracted characters');}
  const comparisons=[];
  for(const [i,invoice] of plan.invoices.entries()){
   const pairJournal=journal.replace(/\.json$/,`-batch-${i}.json`);

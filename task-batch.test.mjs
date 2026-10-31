@@ -18,7 +18,7 @@ test('regression: Soko Bot task inputs must be accepted without including task o
 test('regression: unordered batch attachments must map to exactly one offer and each selected invoice',()=>{
  assert.deepEqual(batchPlan('OIC_BATCH: '+JSON.stringify(plan),[...invoices,offer]),plan);
  assert.equal(batchPlan('Compare two PDFs',[offer,invoices[0]]),null);
- assert.throws(()=>batchPlan('Compare all PDFs',[offer,...invoices]),/require an OIC_BATCH/);
+ assert.equal(batchPlan('Compare all PDFs',[offer,...invoices]),null);
  assert.throws(()=>batchPlan('OIC_BATCH: '+JSON.stringify({...plan,offer:invoices[0]}),[offer,...invoices]),/exactly once/);
 });
 test('regression: one failed batch comparison must not hide other reports or rerun completed pairs on retry',async()=>{
@@ -30,4 +30,12 @@ test('regression: one failed batch comparison must not hide other reports or rer
   const saved=JSON.parse(readFileSync(journal));assert.equal(saved.comparisons.length,3);assert.equal(saved.comparisons[1].status,'uncertain');assert.match(saved.comparisons[1].report,/could not be validated/);assert.match(readFileSync(join(dir,'session-batch-1-error.json'),'utf8'),/Extraction unavailable/);assert.equal(saved.comparisons[2].invoiceFilename,invoices[2]);
   await answerBatch(input,journal,undefined,answer);assert.equal(calls,4);
  }finally{rmSync(dir,{recursive:true,force:true});}
+});
+
+test('regression: a plain Soko Bot task without OIC_BATCH must infer and validate all files once, then reuse its plan',async()=>{
+ const dir=mkdtempSync(join(tmpdir(),'invoice-plan-'));const journal=join(dir,'session.json');let planned=0;
+ const input=batchPrefix+JSON.stringify({plan:null,instructions:'Compare the offer with all three invoice variants',documents:[offer,...invoices].map(name=>({name,text:'FILE: '+name}))});
+ const infer=async(instructions,documents)=>{planned++;assert.equal(documents.length,4);return plan;};
+ const answer=async(text,path)=>{const filename=invoices.find(f=>text.includes('FILE: '+f));writeFileSync(path,JSON.stringify({phase:'answered',outputPolicy:'structured-findings-v2',extraction:{status:'needs_review',offer:{source_filename:offer},invoice:{source_filename:filename}},findings:[],result:'Comparison'}));};
+ try{await answerBatch(input,journal,undefined,answer,undefined,infer);await answerBatch(input,journal,undefined,answer,undefined,infer);assert.equal(planned,1);assert.equal(JSON.parse(readFileSync(journal)).comparisons.length,3);await assert.rejects(()=>answerBatch(input,join(dir,'invalid.json'),undefined,answer,undefined,async()=>({...plan,offer:'not-attached.pdf'})),/exactly once/);}finally{rmSync(dir,{recursive:true,force:true});}
 });
