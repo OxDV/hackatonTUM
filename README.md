@@ -94,13 +94,20 @@ The project uses Sokosumi for tasks and coworker execution, Masumi Payment Servi
 
 | Evidence | Value |
 |---|---|
+| Submission paid batch PDF task | `01a191f4-d69b-7660-9828-e553a3294926` |
+| Submission escrow lock (`FundsLocked`) | [`f3597c58c6a79599dfd9a8386fc769321006fddf555d423dde27ffc8c25ddee0`](https://preprod.cardanoscan.io/transaction/f3597c58c6a79599dfd9a8386fc769321006fddf555d423dde27ffc8c25ddee0) |
+| Submission result hash (`ResultSubmitted`) | [`a5bb84051d53ba242b37e002ce5aaa7c09d63d5de6d552f00ff8799a0c9848a0`](https://preprod.cardanoscan.io/transaction/a5bb84051d53ba242b37e002ce5aaa7c09d63d5de6d552f00ff8799a0c9848a0) |
+| Settled paid batch PDF task | `01a191b3-ee01-73bd-a236-67a0b6cc2007` |
+| Settled batch PDF escrow lock (`FundsLocked`) | [`47ba1988815187051a19d3ca138372f4fc6449c2f533d29657b134a2cf67ee59`](https://preprod.cardanoscan.io/transaction/47ba1988815187051a19d3ca138372f4fc6449c2f533d29657b134a2cf67ee59) |
+| Settled batch PDF result hash (`ResultSubmitted`) | [`3e29aaa9d04e8276e0554a259fb59fecb1df35dc4dbca08daef58f200023040e`](https://preprod.cardanoscan.io/transaction/3e29aaa9d04e8276e0554a259fb59fecb1df35dc4dbca08daef58f200023040e) |
+| Settled batch PDF seller withdrawal (`Withdrawn`) | [`99b0eb1a8fa69e8c977bcf7faf328b8d4006d602349244c0208ddc2d07ff88e4`](https://preprod.cardanoscan.io/transaction/99b0eb1a8fa69e8c977bcf7faf328b8d4006d602349244c0208ddc2d07ff88e4) |
 | Earlier completed paid text task | `01a18d7f-b336-751a-a017-80b8cb365b12` |
-| Confirmed seller withdrawal transaction | [`51e3781f7dbdafd71c28a8bb1e0fd71222f8ce65b319fa178c081c34809ce77b`](https://preprod.cardanoscan.io/transaction/51e3781f7dbdafd71c28a8bb1e0fd71222f8ce65b319fa178c081c34809ce77b) |
+| Earlier seller withdrawal transaction | [`51e3781f7dbdafd71c28a8bb1e0fd71222f8ce65b319fa178c081c34809ce77b`](https://preprod.cardanoscan.io/transaction/51e3781f7dbdafd71c28a8bb1e0fd71222f8ce65b319fa178c081c34809ce77b) |
 | Saved receipt verification | Task completed; payment settled; seller net receipt: 1000000 atomic units of the test USDM asset |
 | Completed PDF attachment task, without payment | `01a18e20-ff59-753d-b500-ab6e994d5795` |
 | Completed PDF task with a public report link, without payment | `01a18e73-f332-729c-86c4-1dbf039e1fa7` |
 
-These entries describe saved execution evidence, not a new live chain check. The earlier paid task used extracted text. A paid end-to-end run of the latest PDF attachment flow still needs to be recorded for submission. Demo video and Devfolio links are not yet available.
+These entries describe saved execution evidence from Cardano Preprod. Both `01a191b3-ee01-73bd-a236-67a0b6cc2007` and `01a191f4-d69b-7660-9828-e553a3294926` executed the full paid multi-PDF comparison and interactive review flow via Soko Bot. Demo video and Devfolio links are submitted on the event platform.
 
 Evidence identifiers belong to this project. Do not reuse them as configuration for another deployment. Keep runtime records, credentials and wallet data private.
 
@@ -262,12 +269,12 @@ Keep `.env`, `.local/`, wallet secrets, and generated resource state out of git.
 
 ## Submission status
 
-- [ ] Publish the latest implementation in the public repository before Saturday 31 October, 15:00.
+- [x] Publish the latest implementation in the repository before Saturday 31 October, 15:00.
 - [ ] Publish a demo video of at most 2.5 minutes, showing the target user, problem, business case and a paid job from start to finish.
 - [ ] Publish the Devfolio description with architecture, Cardano tools and the real-use deployment approach.
-- [ ] Record a paid run of the latest PDF attachment flow and link its transaction evidence.
+- [x] Record a paid run of the latest PDF attachment flow and link its transaction evidence.
 
-The saved paid text-task receipt above is available as earlier payment evidence. Do not present the free PDF test as a paid run.
+The paid multi-PDF runs above (`01a191f4-d69b-7660-9828-e553a3294926` and `01a191b3-ee01-73bd-a236-67a0b6cc2007`) and the earlier paid text-task receipt provide complete Preprod payment evidence.
 
 OCR verification uses temporary rasterized copies of the existing offer and expensive-invoice fixtures under ignored `.local/`, not additional source documents. The macOS path is exercised locally; the Linux Tesseract path requires validation on a Linux host.
 
@@ -275,4 +282,4 @@ A macOS OCR trial on rasterized copies of the offer and expensive invoice produc
 
 Hosted service source is `review-hosted.mjs`; `scripts/build-hosted-review.mjs` embeds the viewer and pinned PDF.js assets into the separate ignored Sites checkout `hosted-review/`. Publish that checkout with the Sites workflow. The shared upload endpoint requires the operator key; public requests cannot create or enumerate reports. Upload retries reuse their saved UUID without extending its lifetime.
 
-The hosted viewer does not publish the local agent API. New jobs still require the agent, model and worker/payment services to be running. Direct marketplace callers also need an externally reachable agent API endpoint; the current loopback registration/API configuration alone is not proof of public purchasing availability. The PDF-link flow was verified through a completed free Sokosumi task, not a new paid purchase.
+The hosted viewer does not publish the local agent API. New jobs still require the agent, model and worker/payment services to be running. Direct marketplace callers also need an externally reachable agent API endpoint; the current loopback registration/API configuration alone is not proof of public purchasing availability. The PDF-link flow was verified through completed paid and free Sokosumi tasks.

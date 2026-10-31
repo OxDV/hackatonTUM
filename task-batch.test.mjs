@@ -11,6 +11,7 @@ const plan={offer,invoices:invoices.map((filename,i)=>({filename,label:['August'
 test('regression: Soko Bot task inputs must be accepted without including task outputs or silently using text when attachments are missing',()=>{
  const input={name:offer,origin:'USER_UPLOAD',uploader:{type:'sokoBot'}};
  assert.deepEqual(inputFiles([input,{origin:'TASK_OUTPUT'}],'Compare attached PDFs'),[input]);
+ assert.throws(()=>inputFiles([input],`Compare\n\n--- ${offer} ---\ntext\n\n--- ${invoices[0]} ---\ntext`),/still being attached/);
  assert.throws(()=>inputFiles([],'Compare attached PDFs'),/No task input PDFs/);
  assert.throws(()=>inputFiles([{origin:'TASK_OUTPUT'}],'Compare'),/No task input PDFs/);
  assert.deepEqual(inputFiles([],'Compare the following extracted text'),[]);

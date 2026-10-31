@@ -12,6 +12,8 @@ export function inputFiles(files,description){
  if(!Array.isArray(files))throw Error('Invalid task attachment response');
  const inputs=files.filter(f=>f.origin==='USER_UPLOAD');
  if(!inputs.length&&(files.length||/OIC_BATCH:|\b(?:attached|attachment|fileIds)\b/i.test(description||'')))throw Error('No task input PDFs received; attach saved Files as task inputs before starting');
+ const expected=[...new Set([...String(description||'').matchAll(/(?:^|\n\n)--- ([^\r\n]+?\.pdf) ---\r?\n/g)].map(m=>m[1]))];
+ if(expected.some(name=>!inputs.some(f=>f.name===name)))throw Error('Task PDFs are still being attached; waiting for all expected files');
  return inputs;
 }
 export async function pdfText(bytes,name){
