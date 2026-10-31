@@ -42,19 +42,53 @@ function highlight(kind,scroll=true){
  const located=locateEvidence(pane.pages,report.findings[state.selected],kind);
  const page=pane.pages[located?.page??evidence.page];if(!page)return;
  const matches=located?.indexes||[];let first;
- const card=document.querySelector('.finding.active');card?.querySelector(`[data-warning="${kind}"]`)?.remove();
+ const card=document.querySelector('.finding.active');if(card)delete card.dataset[kind+'Warning'];
  for(const i of matches){const item=page.items[i];const tr=pdfjs.Util.transform(page.viewport.transform,item.transform);const height=Math.hypot(tr[2],tr[3]);const hit=node('div',undefined,'hit');Object.assign(hit.style,{left:tr[4]+'px',top:tr[5]-height+'px',width:item.width*pane.zoom+'px',height:height+'px'});hit.title=evidence.quote;page.div.append(hit);first??=hit;}
  if(scroll){const container=$(kind),target=first||page.div;const top=container.scrollTop+target.getBoundingClientRect().top-container.getBoundingClientRect().top-60;container.scrollTo({top:Math.max(0,top),behavior:'smooth'});}
- if(card&&!matches.length){const warning=node('p',tr(kind+': no unique source match; showing cited page without a highlight.',(kind==='offer'?'Angebot':'Rechnung')+': Kein eindeutiger Beleg gefunden; die zitierte Seite wird ohne Markierung angezeigt.'),'notice');warning.dataset.warning=kind;card.querySelector(`[data-warning="${kind}"]`)?.remove();card.append(warning);}
+ if(card&&!matches.length)card.dataset[kind+'Warning']=tr(kind+': no unique source match; showing cited page without a highlight.',(kind==='offer'?'Angebot':'Rechnung')+': Kein eindeutiger Beleg gefunden; die zitierte Seite wird ohne Markierung angezeigt.');
 }
-function select(i){state.selected=i===state.selected?-1:Math.max(0,Math.min(i,report.findings.length-1));draw();highlight('offer');highlight('invoice');}
+const helpTip=node('div',undefined,'finding-tooltip');helpTip.id='finding-tooltip';helpTip.setAttribute('role','tooltip');helpTip.hidden=true;document.body.append(helpTip);
+let helpAnchor=null,helpTimer;
+function closeHelp(){clearTimeout(helpTimer);helpAnchor?.removeAttribute('aria-describedby');helpAnchor=null;helpTip.hidden=true;}
+function closeHelpSoon(){clearTimeout(helpTimer);helpTimer=setTimeout(()=>{if(!helpTip.matches(':hover')&&document.activeElement!==helpAnchor)closeHelp();},140);}
+function showHelp(button,f){
+ clearTimeout(helpTimer);helpAnchor?.removeAttribute('aria-describedby');helpAnchor=button;button.setAttribute('aria-describedby',helpTip.id);
+ helpTip.replaceChildren(node('strong',f.title,'tooltip-title'),node('p',f.explanation,'finding-explanation'));
+ const values=node('div',undefined,'source-values');values.append(node('p',tr('Offer: ','Angebot: ')+f.offerValue),node('p',tr('Invoice: ','Rechnung: ')+f.invoiceValue));helpTip.append(values);
+ const evidence=node('div',undefined,'evidence-list');
+ for(const kind of ['offer','invoice'])if(f[kind]){
+  const row=node('div',undefined,'evidence-row'),label=node('span',kind==='offer'?tr('Offer','Angebot'):tr('Invoice','Rechnung'),'evidence-kind'),body=node('div',undefined,'evidence-body');
+  body.append(node('span',`${f[kind].filename} · ${tr('page','Seite')} ${f[kind].page}`,'evidence-source'),node('q',f[kind].quote,'evidence-quote'));row.append(label,body);evidence.append(row);
+  const warning=button.closest('.finding').dataset[kind+'Warning'];if(warning)evidence.append(node('p',warning,'notice'));
+ }
+ helpTip.append(evidence);helpTip.hidden=false;
+ const anchor=button.getBoundingClientRect(),bounds=helpTip.getBoundingClientRect();
+ const left=innerWidth>800?anchor.left-bounds.width-14:Math.min(anchor.left,innerWidth-bounds.width-16);
+ const top=innerWidth>800?anchor.top-12:anchor.bottom+10;
+ helpTip.style.left=Math.max(16,Math.min(left,innerWidth-bounds.width-16))+'px';
+ helpTip.style.top=Math.max(12,Math.min(top,innerHeight-bounds.height-12))+'px';
+}
+helpTip.addEventListener('pointerenter',()=>clearTimeout(helpTimer));helpTip.addEventListener('pointerleave',closeHelpSoon);
+document.addEventListener('keydown',e=>{if(e.key==='Escape')closeHelp();});
+document.addEventListener('pointerdown',e=>{if(!helpTip.contains(e.target)&&!helpAnchor?.contains(e.target))closeHelp();});
+document.addEventListener('scroll',e=>{if(!helpTip.contains(e.target))closeHelp();},true);window.addEventListener('resize',closeHelp);
+function select(i){
+ state.selected=Math.max(0,Math.min(i,report.findings.length-1));
+ document.querySelectorAll('.finding').forEach((card,index)=>{card.classList.toggle('active',index===state.selected);card.setAttribute('aria-current',String(index===state.selected));});
+ $('prev').disabled=state.selected<=0;$('next').disabled=state.selected>=report.findings.length-1;
+ highlight('offer');highlight('invoice');
+}
 function draw(){
+ closeHelp();
  $('count').textContent='· '+report.findings.length+' '+tr('findings','Feststellungen');$('findings').replaceChildren();
  if(!report.findings.length)$('findings').append(node('p',report.status==='matched'?tr('No differences found.','Keine Abweichungen gefunden.'):tr('No confirmed differences. Review the full report for remaining checks.','Keine bestätigten Abweichungen. Weitere Prüfpunkte stehen im vollständigen Bericht.'),'notice'));
  $('prev').disabled=state.selected<=0;$('next').disabled=state.selected>=report.findings.length-1;
  report.findings.forEach((f,i)=>{
   const data=f.financial||null,card=node('article',undefined,'finding'+(i===state.selected?' active':''));card.tabIndex=0;card.setAttribute('aria-current',i===state.selected?'true':'false');
-  const top=node('div',undefined,'finding-top');top.append(node('span',String(i+1).padStart(2,'0'),'finding-index'),node('h3',f.title));card.append(top);
+  const top=node('div',undefined,'finding-top');top.append(node('span',String(i+1).padStart(2,'0'),'finding-index'),node('h3',f.title));
+  const help=node('button','?','finding-help');help.type='button';help.setAttribute('aria-label',tr('Details and source evidence','Details und Quellenbelege'));
+  help.onpointerenter=()=>showHelp(help,f);help.onpointerleave=closeHelpSoon;help.onfocus=()=>showHelp(help,f);help.onblur=closeHelpSoon;help.onclick=e=>{e.stopPropagation();showHelp(help,f);};
+  top.append(help);card.append(top);
   if(f.kind)card.append(node('span',f.kind==='difference'?tr('Difference','Abweichung'):f.kind==='note'?tr('Context note','Hinweis'):tr('Needs review','Prüfung erforderlich'),'finding-kind'));
   if(data){
    const difference=Number(data.difference);
@@ -73,17 +107,7 @@ function draw(){
    }
    card.append(impact);
   }
-  card.onclick=()=>select(i);card.onkeydown=e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();select(i);}};
-  if(i===state.selected){
-   card.append(node('p',f.explanation,'finding-explanation'));
-   const values=node('div',undefined,'source-values');values.append(node('p',tr('Offer: ','Angebot: ')+f.offerValue),node('p',tr('Invoice: ','Rechnung: ')+f.invoiceValue));card.append(values);
-   const evidence=node('div',undefined,'evidence-list');
-   for(const kind of ['offer','invoice'])if(f[kind]){
-    const row=node('div',undefined,'evidence-row'),label=node('span',kind==='offer'?tr('offer','Angebot'):tr('invoice','Rechnung'),'evidence-kind'),body=node('div',undefined,'evidence-body');
-    body.append(node('span',`${f[kind].filename} · ${tr('page','Seite')} ${f[kind].page}`,'evidence-source'),node('q',f[kind].quote,'evidence-quote'));row.append(label,body);evidence.append(row);
-   }
-   card.append(evidence);
-  }
+  card.onclick=()=>select(i);card.onkeydown=e=>{if(e.target===card&&(e.key==='Enter'||e.key===' ')){e.preventDefault();select(i);}};
   $('findings').append(card);
  });
 }
@@ -97,6 +121,7 @@ function updateMail(){
 }
 for(const id of ['draft-to','draft-subject','draft-body'])$(id).addEventListener('input',updateMail);
 function openReport(mode){
+ closeHelp();
  const draft=mode==='draft';draftMode=draft;dialogText=report.report;
  $('draft-fields').hidden=!draft;$('report-text').hidden=draft;$('open-mail').hidden=true;
  if(draft){const message=buildDraft(collection);$('draft-to').value=message.to;$('draft-subject').value=message.subject;$('draft-body').value=message.body;updateMail();}
@@ -114,6 +139,7 @@ function showReady(expiresAt){
 }
 function statusLabel(value){return {matched:tr('No differences found','Keine Abweichungen'),differences:tr('Differences found','Abweichungen gefunden'),uncertain:tr('Needs review','Prüfung erforderlich')}[value];}
 async function openComparison(index){
+ closeHelp();
  const generation=++viewGeneration;
  $('findings').replaceChildren();$('prev').disabled=true;$('next').disabled=true;report=null;
  for(const kind of ['offer','invoice']){if(panes[kind])panes[kind].generation++;delete panes[kind];$(kind).replaceChildren(node('p','Loading PDF…','notice'));}
