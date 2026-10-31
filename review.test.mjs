@@ -1,4 +1,9 @@
 import{test}from'node:test';import assert from'node:assert/strict';import{locateQuote}from'./review/match.mjs';import{loadReview}from'./review-store.mjs';
+import{parseComparison}from'./review-store.mjs';
+test('regression: null amounts in context notes must remain missing values without discarding a valid report',()=>{
+ const result=parseComparison(JSON.stringify({report:'The supplied PDFs have no separately stated amount due.',findings:[{title:'Amount due not stated',kind:'note',priority:'low',explanation:'Both documents retain their original payment terms.',offerValue:null,invoiceValue:null,offer:null,invoice:null}]}));
+ assert.equal(result.findings[0].offerValue,'Not stated');assert.equal(result.findings[0].invoiceValue,'Not stated');assert.equal(result.findings[0].kind,'note');
+});
 test('regression: repeated PDF amounts must not select an arbitrary occurrence',()=>{assert.deepEqual(locateQuote([{str:'195,00 €'},{str:'195,00 €'}],'195,00 €'),[]);assert.deepEqual(locateQuote([{str:'195,00'},{str:' €'}],'195,00 €'),[0,1]);});
 test('regression: invalid tokens cannot escape the report directory',()=>{assert.equal(loadReview('../report'),null);assert.equal(loadReview(''),null);});
 

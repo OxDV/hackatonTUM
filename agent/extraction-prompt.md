@@ -49,6 +49,7 @@ PRICES, TAXES, AND TOTALS
 - Scan the entire document, especially the section after the last line item, for totals.
 - Distinguish net subtotal, VAT, gross total, deposits/credits, and amount due.
 - Do not confuse "amount due after deposit" with the full invoice gross total.
+- A future deposit/payment schedule belongs in payment_terms, not adjustments. Add a deposit or credit to adjustments only when the document actually applies it to an invoiced amount; never turn an unapplied 50/50 payment term into a subtotal adjustment.
 - Capture multiple VAT rates separately.
 - Capture tax exemptions or reverse-charge statements without inventing a tax rate.
 - Extract partial-invoice, progress-billing, delivery-scope, and offer-reference information when present.
@@ -67,10 +68,13 @@ Return an object with these keys:
 
 Each DocumentExtraction contains:
 - document_type: "offer" or "invoice"
+- language: ISO 639-1 code for the document language, such as de or en; determine from document content, not the task prompt
+- customer_contact_name: named bill-to customer contact without a salutation, or null; never use the supplier contact as the customer
 - source_filename: string or null
 - document_number: string or null
 - document_date: string or null
 - referenced_document_numbers: list of strings
+- vendor_email: supplier email copied exactly from the invoice issuer contact details, or null when absent or ambiguous; never use the customer email or invent an address
 - vendor_name: string or null
 - vendor_address: string or null
 - customer_name: string or null
@@ -117,6 +121,8 @@ Each issue contains:
 - description: concise explanation
 - source_reference: source location if available
 - affects_comparison: boolean
+
+Set affects_comparison to true when an issue prevents reliable comparison of document identity, scope, quantities, prices, taxes or totals. A clearly identified sample invoice remains an invoice for comparison; preserve its sample status as a warning without treating that label alone as unreadable or unclassifiable. A missing separately labelled amount due is not a blocker for comparing full net and gross totals when those totals and the billing scope are explicit; keep amount_due null and preserve the payment terms. Use status ready when both documents can be reliably compared, even if such non-blocking warnings remain. Ready never certifies a final accounting document or authorizes payment.
 
 Use the exact top-level structure above. Do not add a comparison or a verdict at this stage.
 

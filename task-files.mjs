@@ -6,7 +6,14 @@ import {join} from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {loadSokosumiRuntime} from './sokosumi-runtime.mjs';
 import {verifyRuntimeTask} from './task-target.mjs';
+import {batchPlan,batchPrefix} from './task-batch.mjs';
 const run=promisify(execFile);
+export function inputFiles(files,description){
+ if(!Array.isArray(files))throw Error('Invalid task attachment response');
+ const inputs=files.filter(f=>f.origin==='USER_UPLOAD');
+ if(!inputs.length&&(files.length||/OIC_BATCH:|\b(?:attached|attachment|fileIds)\b/i.test(description||'')))throw Error('No task input PDFs received; attach saved Files as task inputs before starting');
+ return inputs;
+}
 export async function pdfText(bytes,name){
  if(bytes.subarray(0,5).toString()!=='%PDF-')throw Error('Attachment is not a PDF');
  const dir=await mkdtemp(join(tmpdir(),'invoice-pdf-'));
@@ -44,12 +51,16 @@ export async function taskInput(taskId,description,target){
  const core=createCoworkerHttpClient({apiKey:readRuntimeCredential(target.coworkerId)});
  await verifyRuntimeTask(core,taskId,target);
  const {data:files}=await core.get(`/v1/tasks/${encodeURIComponent(taskId)}/files`,AbortSignal.timeout(30000));
- if(!Array.isArray(files))throw Error('Invalid task attachment response');
- const inputs=files.filter(f=>f.origin==='USER_UPLOAD');
+ const inputs=inputFiles(files,description);
  if(!inputs.length)return description;
- if(inputs.length!==2)throw Error('Attach exactly one offer PDF and one invoice PDF');
+ if(inputs.length<2||inputs.length>4)throw Error('Attach one offer and one to three invoice PDFs');
+ const plan=batchPlan(description,inputs.map(f=>f.name));
  const snapshot=join('.local','review-assets',taskId);await mkdir(snapshot,{recursive:true,mode:0o700});const manifest=[];
- const parts=[description||'Compare the attached offer and invoice.'];
+ // Core appends Files' extracted text to the description. Use our downloaded
+ // PDFs as the source, rather than counting that duplicate text a second time.
+ const appended=inputs.map(f=>(description||'').indexOf('\n\n--- '+f.name+' ---')).filter(i=>i>=0);
+ const instruction=appended.length?description.slice(0,Math.min(...appended)):description;
+ const parts=[instruction||'Compare the attached offer and invoice.'],documents=[];let totalBytes=0;
  for(const f of inputs){
   if(f.taskId!==taskId||f.status!=='READY'||f.mimeType!=='application/pdf')throw Error('Task PDFs must be ready before execution');
   const url=new URL(f.fileUrl);
@@ -60,11 +71,13 @@ export async function taskInput(taskId,description,target){
   const chunks=[];let size=0;
   for await(const chunk of response.body){size+=chunk.length;if(size>10*1024*1024)throw Error('PDF exceeds 10 MB');chunks.push(chunk);}
   const bytes=Buffer.concat(chunks);
-  parts.push(await pdfText(bytes,f.name));
+  totalBytes+=bytes.length;if(totalBytes>15*1024*1024)throw Error('Combined PDFs exceed 15 MB');
+  const text=await pdfText(bytes,f.name);parts.push(text);documents.push({name:f.name,text});
   const path=join(snapshot,`${manifest.length}.pdf`);await writeFile(path,bytes,{mode:0o600});manifest.push({name:f.name,path});
  }
- const input=parts.join('\n\n');
- if(input.length>16000)throw Error('Combined PDF text exceeds 16000 characters; split the documents into smaller tasks');
+ const input=plan?batchPrefix+JSON.stringify({plan,documents}):parts.join('\n\n');
+ if(plan){const offer=documents.find(d=>d.name===plan.offer);for(const invoice of plan.invoices){if(offer.text.length+documents.find(d=>d.name===invoice.filename).text.length>15000)throw Error('Each offer/invoice pair must fit within 15000 extracted characters');}}
+ else if(input.length>16000)throw Error('Combined PDF text exceeds 16000 characters; split the documents into smaller tasks');
  await writeFile(join(snapshot,'manifest.json'),JSON.stringify(manifest),{mode:0o600});
  return input;
 }

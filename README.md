@@ -2,11 +2,11 @@
 
 An AI coworker for procurement teams, property managers, and small businesses that need to check a supplier invoice against its quotation before approving payment.
 
-Upload an offer and an invoice to a Sokosumi task. The agent produces an English comparison report with changed prices, quantities, additional charges, source references, calculation evidence, and a supplier email draft when clarification is needed. It distinguishes document-total differences from potential overcharges and flags incomplete evidence.
+Upload an offer and an invoice to a Sokosumi task. The agent produces a comparison report in the invoice document language with changed prices, quantities, additional charges, source references, calculation evidence, and a supplier email draft when clarification is needed. It distinguishes document-total differences from potential overcharges and flags incomplete evidence.
 
 ## How it works
 
-1. The worker reads the assigned task and its two PDF attachments, preserving filenames and page numbers. Pages without sufficient embedded text are processed with local OCR before any payment request.
+1. The worker reads the assigned task and its PDF attachments, preserving filenames and page numbers. Pages without sufficient embedded text are processed with local OCR before any payment request.
 2. The model extracts structured data. Zod validates the result; one format-repair attempt is allowed before an invalid extraction blocks comparison.
 3. Application code checks line arithmetic, supported VAT calculations, net subtotals, gross totals, and document-total differences using exact rational arithmetic.
 4. The model interprets scope, matches items, and writes the report and email draft. The application appends its calculation evidence.
@@ -22,9 +22,9 @@ A real deployment would run Eve and a single worker continuously on an operator-
 
 ## Inputs and limitations
 
-Both paid and free Sokosumi tasks support two PDF attachments. Upload exactly one offer and one invoice, wait for both uploads to finish, then mark the task READY. Text-only tasks remain supported. Suggested description:
+Both paid and free Sokosumi tasks support one offer and one to three invoice PDFs. For a single comparison, upload exactly one offer and one invoice, wait for both uploads to finish, then mark the task READY. Text-only tasks remain supported. Suggested description:
 
-> Compare the two attached PDFs. Prepare an English report and a supplier email draft.
+> Compare the two attached PDFs. Prepare the report and supplier email draft in the invoice document language.
 
 The worker snapshots extracted text before choosing the payment branch and uses that snapshot after escrow confirmation. The Task payment input hash retains the authoritative task description required by the existing protocol; it is not a separate cryptographic commitment to PDF bytes. The standalone Standard API `/start_job` accepts extracted text in one `prompt` field, not file uploads.
 
@@ -33,11 +33,32 @@ The worker snapshots extracted text before choosing the payment branch and uses 
 - Scanned PDF pages use local OCR: Apple Vision on macOS, or Tesseract with `deu` and `eng` language data plus Poppler (`pdftotext`, `pdftoppm`) on Linux. Linux OCR dependencies must be installed separately. Native text pages keep their existing extraction path.
 - PDFs are limited to 20 pages. Blank/unreadable pages and OCR pages with mean confidence below 0.8 are rejected before the agent requests payment. Recognized segments below 0.5 confidence are explicitly marked as uncertain for review. These thresholds are heuristics, not a guarantee of numeric accuracy.
 - OCR is configured for German and English printed text. Handwriting, standalone photos, perspective correction and arbitrary languages are not supported. OCR output is marked for source verification; ambiguous values must remain unverified. Mixed pages with an existing but incomplete text layer can still need manual review.
-- Each PDF is limited to 10 MB. Combined extracted text and task description must fit within 16000 characters.
+- Each PDF is limited to 10 MB, with 15 MB of PDFs combined per task. A single comparison must fit within 16000 input characters. In a batch, each offer/invoice pair is limited to 15000 extracted characters, with at most three invoices. Each pair uses its own extraction, verification and comparison stages.
 - Only READY PDFs from Sokosumi public Vercel Blob storage are supported. Incomplete uploads and unsupported storage fail explicitly.
 - Arithmetic checks cover EUR, USD, GBP and CHF with two decimal places. Unsupported adjustments, missing values and other currencies remain unverified.
 - Extraction, item matching and contractual interpretation use a model and require human review. Calculation checks do not certify extraction accuracy or authorize payment.
-- Reports, follow-up answers and supplier email drafts are in English.
+- Reports, findings, follow-up answers and supplier drafts use the invoice document language. If the offer uses another language, the invoice language takes precedence. The letter is signed by the named bill-to customer contact, falling back to the customer company. Unknown names are never invented.
+
+## Gmail selection through Soko Bot
+
+Only Sokosumi's built-in Soko Bot receives mailbox access. This external Coworker receives selected task inputs, not Gmail credentials or access to the rest of the mailbox.
+
+1. Connect Gmail to Soko Bot in the same Preprod account and use the Personal Workspace configured for this worker.
+2. Ask Soko Bot to search the supplier's emails, identify the offer and invoice PDF attachments, and ask which periods to check. A text choice works; native chat checkboxes are not required by this implementation.
+3. After selecting periods, ask it to use `save_email_attachment`, then `create_task` with this Coworker's ID, the returned Files `fileIds`, and status `READY`. It must attach the actual saved PDFs, not only paste extracted text. Wait for all attachments to be ready.
+4. For more than one invoice, include one exact JSON line in the task description. Use the actual saved attachment filenames and selected period labels:
+
+   ```text
+   OIC_BATCH: {"offer":"1-Angebot_Musterhandwerker.pdf","invoices":[{"filename":"1-Correct-Musterrechnung.pdf","label":"August"},{"filename":"1-Reduced-Cost-Musterrechnung.pdf","label":"September"},{"filename":"1-More-Expensive-Musterrechnung.pdf","label":"October"}]}
+   ```
+
+The four existing PDF fixtures above are independent demo variants. Month labels do not change their February dates or supplier identity. The worker rejects ambiguous mappings, duplicate filenames/labels, missing files and batches over three invoices. A single selected invoice can keep the existing two-PDF task format without this mapping.
+
+Suggested Soko Bot request:
+
+> Find the offer and invoices from the selected supplier in my connected Gmail. List the available periods and attachment names, then wait for my selection. Save only the selected invoice PDFs and the offer PDF to Files. Create one READY task assigned to Offer Invoice Compare, attaching their saved fileIds. For multiple invoices, add an OIC_BATCH JSON line containing the exact offer filename and an invoices array of filename and label pairs. Labels must reflect my selection, without inventing document dates. Request a comparison in the invoice document language and one interactive review link. Do not send emails or modify my mailbox.
+
+A live October task confirmed that Soko Bot's saved PDFs arrive as `USER_UPLOAD` with uploader type `sokoBot`; the existing origin filter accepts them and excludes `TASK_OUTPUT`. Core also appends extracted Files text to the task description. The worker uses downloaded PDFs as the source and removes that duplicate appended block before constructing its single-pair input. A task that mentions attachments but receives no input files fails explicitly rather than silently running a text-only comparison.
 
 ## Sample results and validation
 
@@ -53,15 +74,17 @@ Differences are invoice minus offer; they are not automatically overcharges. Loc
 
 ## Interactive PDF review
 
-The public viewer is hosted at https://offer-invoice-review.nettedskunk.chatgpt.site. The homepage contains no customer results. Each report is accessible only with its own random UUID link for 24 hours, without sign-in.
+The public viewer is hosted at https://offer-invoice-review.lakycherry.chatgpt.site. The homepage contains no customer results. Each report is accessible only with its own random UUID link for 24 hours, without sign-in.
 
-For hosted publication set `REVIEW_BASE_URL=https://offer-invoice-review.nettedskunk.chatgpt.site` and `REVIEW_PUBLISH_URL=https://offer-invoice-review.nettedskunk.chatgpt.site/api/publish` in `.env`. The worker reads its private upload key from `.local/review-upload.env`; configure the matching `REVIEW_UPLOAD_KEY` as a secret on the hosted service. Restart the worker after configuration changes. Report uploads include the structured findings and snapshots of both PDFs. Hosted object storage is separate from the operator's machine; reading an already published report does not require the local agent to remain online.
+For hosted publication set `REVIEW_BASE_URL=https://offer-invoice-review.lakycherry.chatgpt.site` and `REVIEW_PUBLISH_URL=https://offer-invoice-review.lakycherry.chatgpt.site/api/publish` in `.env`. The worker reads its private upload key from `.local/review-upload.env`; configure the matching `REVIEW_UPLOAD_KEY` as a secret on the hosted service. Restart the worker after configuration changes. Report uploads include the structured findings and snapshots of both PDFs. Hosted object storage is separate from the operator's machine; reading an already published report does not require the local agent to remain online.
 
 For local development, leave `REVIEW_PUBLISH_URL` empty, set `REVIEW_BASE_URL=http://127.0.0.1:21951` and run `npm run review`. `REVIEW_PORT` defaults to 21951.
 
-The interface shows two PDFs and structured findings. Selecting a finding first looks for a unique matching monetary row across the document, using a position number to disambiguate repeated amounts when available. It then tries unique literal quotes and fragments of abbreviated quotes. This recovers prices when a model cites a continuation page or includes ellipses. Ambiguous matches fall back to the cited page without a highlight. Scans without a text layer can be viewed but cannot receive text-based highlights. PDF rendering uses pinned PDF.js; no document is sent to an external viewer.
+The interface shows two PDFs and structured findings. Matched comparisons show a localized no-differences message with no cards. Context notes remain in the full report; only actual differences and comparison-blocking uncertainties appear as cards. Numeric impact cards use AI-provided item references into validated extraction data; application code computes line totals, deltas and unit-price percentages with exact decimal arithmetic. The viewer does not parse amounts or customer data from prose. Currency, unit, supplier email and bill-to identity come from AI extraction, never fixture-specific defaults. The viewer rejects findings referring to a different invoice, and cancels stale PDF renders when changing periods. Batch reports add a period selector: each selection shows the shared offer, the selected invoice, its own findings, report and supplier draft. Green means no differences found with sufficient extraction and arithmetic evidence; red means differences found; yellow means incomplete evidence or a failed comparison. These statuses do not approve payment. A failed comparison does not discard successful periods. Period labels are supplied by the task owner or Soko Bot and are not verified invoice dates. All periods and PDFs share the same 24-hour access deadline. Selecting a finding first looks for a unique matching monetary row across the document, using a position number to disambiguate repeated amounts when available. It then tries unique literal quotes and fragments of abbreviated quotes. This recovers prices when a model cites a continuation page or includes ellipses. Ambiguous matches fall back to the cited page without a highlight. Scans without a text layer can be viewed but cannot receive text-based highlights. PDF rendering uses pinned PDF.js; no document is sent to an external viewer.
 
 The agent groups related price changes and avoids treating missing line-level tax data as a discrepancy. Findings and source references are model-generated and still need human review. Review marks are browser-local notes; they do not authorize payment or alter Sokosumi task status.
+
+Response draft builds a separate editable supplier letter in the invoice document language from confirmed differences across all selected periods; it never falls back to the full report. Matching periods and general payment/sample-document notes are excluded. The recipient is taken only from the AI-extracted supplier email field for the invoice. Customer identity is also AI-extracted; no header-pattern fallback or fixed example identity is used. Missing or conflicting addresses require manual entry. The Open in mail app link uses mailto with an encoded recipient, subject and body. It opens the default mail application for review and does not send anything. Mail application support and message-length limits depend on the operating system; Copy draft is also available.
 
 Hosted links use cryptographically random UUIDv4 access tokens and expire 24 hours after the first successful upload. Local links use 256-bit random tokens. The server checks expiration for both report data and PDF requests, uses no-store responses and keeps the token in the URL fragment. Anyone holding the link can access the report until expiry. Expiration revokes server access; it does not delete downloaded copies or local files. Local reports and PDF snapshots remain under ignored `.local/reviews/` and `.local/review-assets/` until the operator removes them. Hosted access is denied after expiry and expired objects are removed when accessed; automatic background deletion is not currently scheduled. Keep these paths out of deployments of static assets and never place private PDFs in a public static directory. Local report storage must be retained and protected when hosting the review server.
 
