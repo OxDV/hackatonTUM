@@ -39,13 +39,13 @@ The worker snapshots extracted text before choosing the payment branch and uses 
 - Extraction, item matching and contractual interpretation use a model and require human review. Calculation checks do not certify extraction accuracy or authorize payment.
 - Reports, findings, follow-up answers and supplier drafts use the invoice document language. If the offer uses another language, the invoice language takes precedence. The letter is signed by the named bill-to customer contact, falling back to the customer company. Unknown names are never invented.
 
-## Gmail selection through Soko Bot
+## Gmail selection or manual upload through Soko Bot
 
-Only Sokosumi's built-in Soko Bot receives mailbox access. This external Coworker receives selected task inputs, not Gmail credentials or access to the rest of the mailbox.
+Only Sokosumi's built-in Soko Bot receives mailbox access. This external Coworker receives selected task inputs, not Gmail credentials or access to the rest of the mailbox. If you prefer not to connect Gmail to Soko Bot, you can also upload the offer and invoice PDFs directly into the Soko Bot chat (or directly into a Sokosumi task) for comparison.
 
-1. Connect Gmail to Soko Bot in the same Preprod account and use the Personal Workspace configured for this worker.
+1. Connect Gmail to Soko Bot in the same Preprod account and use the Personal Workspace configured for this worker (or upload the PDF files directly to Soko Bot if you do not want to connect Gmail).
 2. Ask Soko Bot to search the supplier's emails, identify the offer and invoice PDF attachments, and ask which periods to check. A text choice works; native chat checkboxes are not required by this implementation.
-3. After selecting periods, ask it to use `save_email_attachment`, then `create_task` with this Coworker's ID, the returned Files `fileIds`, and status `READY`. It must attach the actual saved PDFs, not only paste extracted text. Wait for all attachments to be ready.
+3. After selecting periods, Soko Bot saves the selected attachments to Files and creates a `READY` task assigned to this Coworker with the attached PDFs.
 4. A short natural-language description plus the actual PDF files is enough. For multiple invoices, the agent identifies the reference offer and invoice periods from the PDF content and task instructions. It validates that every file is included exactly once and caches this plan before running separate comparisons. Ambiguous roles require clarification. An optional explicit mapping remains supported for scripted integrations:
 
    ```text
@@ -54,9 +54,15 @@ Only Sokosumi's built-in Soko Bot receives mailbox access. This external Coworke
 
 The four existing PDF fixtures above are independent demo variants. Month labels do not change their February dates or supplier identity. The worker rejects ambiguous mappings, duplicate filenames/labels, missing files and batches over three invoices. A single selected invoice can keep the existing two-PDF task format without this mapping.
 
-Suggested Soko Bot request:
+Prompt for Soko Bot (with Gmail connected):
 
-> Find the offer and invoices from the selected supplier in my connected Gmail. List the available periods and attachment names, then wait for my selection. Save only the selected invoice PDFs and the offer PDF to Files. Create one READY task assigned to Offer Invoice Compare, attaching their saved fileIds. Describe which selected invoices should be compared against the offer. Labels must reflect my selection, without inventing document dates. Request a comparison in the invoice document language and one interactive review link. Do not send emails or modify my mailbox.
+```text
+Check my Gmail for an offer and invoices from vishAgent testGmbh. Show me the available invoices and ask which ones I want to check.
+
+After I choose, find a suitable agent and create new task to compare them against the offer. Send it the selected documents and return a link to the comparison results and a draft email explaining any differences to the supplier.
+```
+
+*(If Gmail is not connected, attach the offer and invoice PDFs directly to your Soko Bot message and ask it to find a suitable agent and create a task to compare them.)*
 
 A live October task confirmed that Soko Bot's saved PDFs arrive as `USER_UPLOAD` with uploader type `sokoBot`; the existing origin filter accepts them and excludes `TASK_OUTPUT`. Core also appends extracted Files text to the task description. The worker uses downloaded PDFs as the source and removes that duplicate appended block before constructing its single-pair input. A task that mentions attachments but receives no input files fails explicitly rather than silently running a text-only comparison.
 
